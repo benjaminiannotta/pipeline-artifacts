@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>DRIFT LOCK</title>
+<style>
+  :root{
+    --bg:#0A0C10;
+    --ink:#E8ECF0;
+    --dim:#5A6470;
+    --accent:#3FE0D0;
+    --grey:#6A7078;
+    --mono:'SF Mono','SFMono-Regular',ui-monospace,'Cascadia Mono','Roboto Mono','DejaVu Sans Mono','Consolas',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:var(--bg);overflow:hidden}
+  body{
+    font-family:var(--mono);
+    color:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    user-select:none;-webkit-user-select:none;touch-action:manipulation;
+  }
+  #stage{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none}
+
+  /* End card */
+  #card{
+    position:absolute;left:50%;bottom:0;transform:translate(-50%,110%);
+    width:min(92vw,440px);
+    background:rgba(12,14,19,0.92);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:14px 14px 0 0;
+    padding:26px 26px 30px;
+    transition:transform .42s cubic-bezier(.16,.84,.34,1);
+    backdrop-filter:blur(6px);
+  }
+  #card.show{transform:translate(-50%,0)}
+  .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .lab{font-size:11px;letter-spacing:.22em;color:var(--dim)}
+  .val{font-size:30px;font-weight:600;font-variant-numeric:tabular-nums}
+  .verdict{
+    margin:18px 0 6px;
+    font-size:clamp(34px,11vw,58px);
+    font-weight:800;letter-spacing:.04em;line-height:1;
+    width:100%;color:var(--accent);
+    word-break:break-word;
+  }
+  .vsub{font-size:12px;letter-spacing:.18em;color:var(--dim);margin-bottom:20px;min-height:14px}
+  .share{
+    font-size:12.5px;color:var(--dim);line-height:1.5;
+    border-top:1px solid rgba(255,255,255,0.07);padding-top:16px;margin-bottom:14px;
+    font-variant-numeric:tabular-nums;
+  }
+  #copy{
+    width:100%;padding:13px;border-radius:9px;cursor:pointer;
+    background:transparent;color:var(--accent);
+    border:1px solid var(--accent);
+    font-family:var(--mono);font-size:12px;letter-spacing:.22em;font-weight:600;
+    transition:background .15s,color .15s;
+  }
+  #copy:active{background:var(--accent);color:var(--bg)}
+  #copy.done{background:var(--accent);color:var(--bg)}
+  .again{text-align:center;font-size:10.5px;letter-spacing:.24em;color:var(--dim);margin-top:14px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="card">
+    <div class="row"><span class="lab">LOCKS</span><span class="val" id="cLocks">0</span></div>
+    <div class="row"><span class="lab">FLINCHES</span><span class="val" id="cFlinch">0</span></div>
+    <div class="verdict" id="cVerdict">—</div>
+    <div class="vsub" id="cVsub"></div>
+    <div class="share" id="cShare"></div>
+    <button id="copy">COPY RESULT</button>
+    <div class="again">TAP TO RUN AGAIN</div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   DRIFT LOCK
+   ============================================================ */
+
+/* ---- PURE GRADING LOGIC (kept identical to test/verdict.test.mjs) ---- */
+function computeVerdict(locks, flinches){
+  let word;
+  if (locks <= 3)       word = 'TWITCHY';
+  else if (locks <= 7)  word = 'STEADY';
+  else if (locks <= 11) word = 'SHARP';
+  else if (locks <= 16) word = 'COLD';
+  else                  word = 'SURGICAL';
+
+  const clean = flinches === 0;
+  // DEADEYE overrides the word entirely for 12+ clean runs (no modifier).
+  if (clean && locks >= 12) return { word: 'DEADEYE', modifier: '' };
+  // Any other clean run appends the NO FLINCH modifier.
+  return { word, modifier: clean ? '· NO FLINCH' : '' };
+}
+function verdictString(locks, flinches){
+  const v = computeVerdict(locks, flinches);
+  return v.modifier ? v.word + ' ' + v.modifier : v.word;
+}
+function shareString(locks, flinches){
+  return 'DRIFT LOCK — ' + locks + ' locks, ' + flinches +
+         (flinches === 1 ? ' flinch: ' : ' flinches: ') +
+         verdictString(locks, flinches) + '. Beat it.';
+}
+/* --------------------------------------------------------------------- */
+
+/* ---- Tuning (DEADEYE-reachable) ---- */
+const T = {
+  baseSpeed: 1.7,        // rad/sec
+  speedGain: 1.085,      // per lock
+  speedCap: 9.5,
+  zoneStart: 0.62,       // half-width radians
+  zoneShrink: 0.9,       // per lock
+  zoneFloor: 0.13,       // smallest half-width
+  grace: 0.16,           // extra half-width band beyond zone that counts as flinch
+  graceShrink: 0.94,
+  graceFloor: 0.05,
+  reverseAfter: 4,       // reverse chance enabled once locks >= this
+  reverseChance: 0.32
+};
+
+/* ---- Milestone accents ---- */
+function accentFor(locks){
+  if (locks >= 15) return '#FF3D7F';   // hot magenta
+  if (locks >= 10) return '#F2A93B';   // amber  (transition begins at 10)
+  if (locks >= 5)  return '#7FE8C4';   // cyan->mid lean at first milestone
+  return '#3FE0D0';                    // ice-cyan
+}
+
+/* ---- Canvas setup ---- */
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W=0,H=0,DPR=1,CX=0,CY=0,R=0;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  cv.style.width = W+'px'; cv.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  CX = W/2; CY = H/2;
+  R = Math.min(W,H) * 0.30;
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---- Game state ---- */
+let S = null;
+function newRun(){
+  S = {
+    state:'run',            // 'run' | 'dead'
+    angle: Math.random()*Math.PI*2,
+    speed: T.baseSpeed,
+    dir: 1,
+    zoneCenter: Math.random()*Math.PI*2,
+    zoneHalf: T.zoneStart,
+    grace: T.grace,
+    locks: 0,
+    flinches: 0,
+    accent: accentFor(0),
+    trail: [],
+    flash: 0,              // lock flash 0..1
+    flinchFlash: 0,
+    pulse: 1,             // scale pulse
+    deadT: 0,
+    flinchMarks: []        // angles of recorded flinches (visual)
+  };
+  hideCard();
+  startHum();
+}
+
+/* ---- Audio (procedural Web Audio) ---- */
+let AC=null, hum=null, humGain=null;
+function audio(){
+  if (AC) return AC;
+  try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; }
+  return AC;
+}
+function startHum(){
+  const ac = audio(); if(!ac) return;
+  if (ac.state==='suspended') ac.resume();
+  if (hum) return;
+  hum = ac.createOscillator();
+  humGain = ac.createGain();
+  hum.type='sawtooth';
+  hum.frequency.value = 70;
+  humGain.gain.value = 0.0;
+  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=520;
+  hum.connect(lp); lp.connect(humGain); humGain.connect(ac.destination);
+  hum.start();
+  humGain.gain.setTargetAtTime(0.05, ac.currentTime, 0.3);
+}
+function updateHum(){
+  const ac = audio(); if(!ac||!hum) return;
+  // pitch tracks rotation speed -> player hears the pressure
+  const f = 60 + (S.speed - T.baseSpeed) * 26;
+  hum.frequency.setTargetAtTime(f, ac.currentTime, 0.08);
+}
+function stopHum(){
+  const ac=audio(); if(!ac||!hum) return;
+  humGain.gain.setTargetAtTime(0.0001, ac.currentTime, 0.12);
+  const h=hum; setTimeout(()=>{try{h.stop()}catch(e){}},300);
+  hum=null;
+}
+function blip(){
+  const ac=audio(); if(!ac) return;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(880, ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(1500, ac.currentTime+0.06);
+  g.gain.setValueAtTime(0.0001, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.22, ac.currentTime+0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.14);
+  o.connect(g); g.connect(ac.destination);
+  o.start(); o.stop(ac.currentTime+0.16);
+}
+function flinchBlip(){
+  const ac=audio(); if(!ac) return;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type='triangle'; o.frequency.setValueAtTime(420, ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(300, ac.currentTime+0.1);
+  g.gain.setValueAtTime(0.0001, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.16, ac.currentTime+0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.18);
+  o.connect(g); g.connect(ac.destination);
+  o.start(); o.stop(ac.currentTime+0.2);
+}
+function thunk(){
+  const ac=audio(); if(!ac) return;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(150, ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(48, ac.currentTime+0.25);
+  g.gain.setValueAtTime(0.0001, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.3, ac.currentTime+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.4);
+  // a little noise grit
+  o.connect(g); g.connect(ac.destination);
+  o.start(); o.stop(ac.currentTime+0.42);
+}
+
+/* ---- Angle helpers ---- */
+function angDiff(a,b){
+  let d = (a-b) % (Math.PI*2);
+  if (d > Math.PI) d -= Math.PI*2;
+  if (d < -Math.PI) d += Math.PI*2;
+  return Math.abs(d);
+}
+
+/* ---- Fire the single shot ---- */
+function fire(){
+  if (!S){ newRun(); return; }
+  if (S.state === 'dead'){
+    // restart only after end card has had a beat
+    if (S.deadT > 0.25) newRun();
+    return;
+  }
+  const d = angDiff(S.angle, S.zoneCenter);
+  if (d <= S.zoneHalf){
+    lock();
+  } else if (d <= S.zoneHalf + S.grace){
+    flinch();
+  } else {
+    miss();
+  }
+}
+
+function lock(){
+  S.locks++;
+  S.flash = 1;
+  S.pulse = 1.18;
+  blip();
+  // tighten everything
+  S.speed = Math.min(T.speedCap, S.speed * T.speedGain);
+  S.zoneHalf = Math.max(T.zoneFloor, S.zoneHalf * T.zoneShrink);
+  S.grace = Math.max(T.graceFloor, S.grace * T.graceShrink);
+  // reverse chance (silent) only once we are past the teaching rounds
+  if (S.locks >= T.reverseAfter && Math.random() < T.reverseChance){
+    S.dir *= -1;
+  }
+  // new zone position
+  S.zoneCenter = Math.random()*Math.PI*2;
+  S.accent = accentFor(S.locks);
+  updateHum();
+}
+
+function flinch(){
+  S.flinches++;
+  S.flinchFlash = 1;
+  S.flinchMarks.push(S.angle);
+  flinchBlip();
+  // a flinch still survives; treat like a (rough) lock for progression so pressure keeps rising
+  S.locks++;
+  S.speed = Math.min(T.speedCap, S.speed * T.speedGain);
+  S.zoneHalf = Math.max(T.zoneFloor, S.zoneHalf * T.zoneShrink);
+  S.grace = Math.max(T.graceFloor, S.grace * T.graceShrink);
+  if (S.locks >= T.reverseAfter && Math.random() < T.reverseChance) S.dir *= -1;
+  S.zoneCenter = Math.random()*Math.PI*2;
+  S.accent = accentFor(S.locks);
+  updateHum();
+}
+
+function miss(){
+  S.state = 'dead';
+  S.deadT = 0;
+  thunk();
+  stopHum();
+  showCard();
+}
+
+/* ---- End card ---- */
+const card = document.getElementById('card');
+function showCard(){
+  document.getElementById('cLocks').textContent = S.locks;
+  document.getElementById('cFlinch').textContent = S.flinches;
+  const v = computeVerdict(S.locks, S.flinches);
+  const vEl = document.getElementById('cVerdict');
+  vEl.textContent = v.word;
+  vEl.style.color = S.accent;
+  document.getElementById('cVsub').textContent = v.modifier || '';
+  document.getElementById('cShare').textContent = shareString(S.locks, S.flinches);
+  document.getElementById('copy').style.borderColor = S.accent;
+  document.getElementById('copy').style.color = S.accent;
+  // slight delay so the freeze registers before the card slides up
+  setTimeout(()=>card.classList.add('show'), 180);
+}
+function hideCard(){ card.classList.remove('show'); }
+
+document.getElementById('copy').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  const txt = document.getElementById('cShare').textContent;
+  const done = ()=>{
+    const b=document.getElementById('copy');
+    const o=b.textContent; b.textContent='COPIED'; b.classList.add('done');
+    setTimeout(()=>{b.textContent=o; b.classList.remove('done');},1100);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(done);
+  } else {
+    const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); try{document.execCommand('copy')}catch(e){} document.body.removeChild(ta); done();
+  }
+});
+
+/* ---- Input ---- */
+function onFire(e){
+  // ignore taps on the copy button / card controls
+  if (e && e.target && (e.target.id==='copy')) return;
+  if (e && e.cancelable) e.preventDefault();
+  fire();
+}
+window.addEventListener('pointerdown', onFire, {passive:false});
+window.addEventListener('keydown', (e)=>{
+  if (e.code==='Space' || e.key===' '){
+    if (e.repeat) return;
+    e.preventDefault();
+    fire();
+  }
+});
+
+/* ---- Render ---- */
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  if (S){
+    if (S.state==='run'){
+      S.angle += S.dir * S.speed * dt;
+      S.trail.unshift(S.angle);
+      if (S.trail.length > 14) S.trail.pop();
+    } else {
+      S.deadT += dt;
+    }
+    S.flash *= Math.pow(0.001, dt);
+    S.flinchFlash *= Math.pow(0.001, dt);
+    S.pulse += (1 - S.pulse) * Math.min(1, dt*12);
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if (!S) return;
+  const dead = S.state==='dead';
+  const accent = dead ? '#6A7078' : S.accent;
+  const r = R * (S ? S.pulse : 1);
+
+  // base ring
+  ctx.lineWidth = Math.max(2, R*0.012);
+  ctx.strokeStyle = dead ? 'rgba(120,128,138,0.25)' : 'rgba(255,255,255,0.10)';
+  ctx.beginPath(); ctx.arc(CX,CY,r,0,Math.PI*2); ctx.stroke();
+
+  // lock zone arc (+ grace band drawn fainter)
+  const zc = S.zoneCenter;
+  // grace band
+  ctx.lineWidth = Math.max(2, R*0.012);
+  ctx.strokeStyle = dead ? 'rgba(120,128,138,0.18)' : hexA(accent,0.22);
+  ctx.beginPath(); ctx.arc(CX,CY,r, zc-(S.zoneHalf+S.grace), zc+(S.zoneHalf+S.grace)); ctx.stroke();
+  // core zone
+  const flash = Math.max(S.flash, 0);
+  ctx.lineWidth = Math.max(4, R*0.05) * (1 + flash*0.7);
+  ctx.strokeStyle = dead ? 'rgba(130,138,148,0.5)' : accent;
+  ctx.shadowBlur = dead ? 0 : (10 + flash*40);
+  ctx.shadowColor = accent;
+  ctx.beginPath(); ctx.arc(CX,CY,r, zc-S.zoneHalf, zc+S.zoneHalf); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // flinch marks (small ticks) on ring
+  ctx.strokeStyle = dead ? 'rgba(160,120,120,0.5)' : 'rgba(255,90,120,0.7)';
+  ctx.lineWidth = Math.max(2,R*0.015);
+  for (const a of S.flinchMarks){
+    const x1=CX+Math.cos(a)*(r-R*0.04), y1=CY+Math.sin(a)*(r-R*0.04);
+    const x2=CX+Math.cos(a)*(r+R*0.04), y2=CY+Math.sin(a)*(r+R*0.04);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  }
+
+  // marker trail
+  for (let i=S.trail.length-1;i>=0;i--){
+    const a=S.trail[i];
+    const t=1 - i/S.trail.length;
+    const x=CX+Math.cos(a)*r, y=CY+Math.sin(a)*r;
+    ctx.beginPath();
+    ctx.fillStyle = hexA(dead?'#8A929C':'#FFFFFF', t*0.28);
+    ctx.arc(x,y, R*0.018*t + 1, 0, Math.PI*2); ctx.fill();
+  }
+  // marker dot
+  const mx=CX+Math.cos(S.angle)*r, my=CY+Math.sin(S.angle)*r;
+  ctx.beginPath();
+  ctx.fillStyle = dead ? '#9AA2AC' : '#FFFFFF';
+  ctx.shadowBlur = dead?0:12; ctx.shadowColor='#FFFFFF';
+  ctx.arc(mx,my, R*0.035, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // center readout
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle = dead ? '#6A7078' : accent;
+  ctx.font = '700 '+Math.round(R*0.34)+'px '+monoFont();
+  ctx.fillText(String(S.locks), CX, CY - R*0.02);
+  ctx.fillStyle = '#5A6470';
+  ctx.font = '600 '+Math.round(R*0.07)+'px '+monoFont();
+  ctx.fillText('LOCKS', CX, CY + R*0.22);
+
+  // top readout line
+  ctx.fillStyle = '#5A6470';
+  ctx.font = '600 '+Math.round(Math.min(W,H)*0.022)+'px '+monoFont();
+  ctx.fillText('FLINCHES '+S.flinches, CX, CY - R*1.55);
+
+  // input hint (fades after first lock)
+  if (S.locks===0 && !dead){
+    ctx.fillStyle = 'rgba(120,132,144,'+(0.55+0.25*Math.sin(now()/350))+')';
+    ctx.font = '600 '+Math.round(Math.min(W,H)*0.022)+'px '+monoFont();
+    ctx.fillText('TAP TO LOCK', CX, CY + R*1.55);
+  }
+}
+function now(){ return performance.now(); }
+function monoFont(){ return "ui-monospace,'SF Mono','Cascadia Mono','Roboto Mono','Consolas',monospace"; }
+function hexA(hex, a){
+  const h=hex.replace('#','');
+  const r=parseInt(h.substring(0,2),16), g=parseInt(h.substring(2,4),16), b=parseInt(h.substring(4,6),16);
+  return 'rgba('+r+','+g+','+b+','+a+')';
+}
+
+/* ---- Boot ---- */
+newRun();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
