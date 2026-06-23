@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>LAST TEXT</title>
+<style>
+  :root{
+    --bg:#0E0B0D;        /* warm near-black */
+    --verdict:#ECE6E4;   /* soft off-white  */
+    --rose:#C97B84;      /* muted warm rose */
+    --rose-dim:rgba(201,123,132,0.55);
+    --rose-faint:rgba(201,123,132,0.22);
+  }
+
+  *{box-sizing:border-box;}
+
+  html,body{height:100%;}
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--verdict);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    min-height:100vh;
+    min-height:100dvh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:32px 22px;
+    overflow:hidden;
+  }
+
+  .stage{
+    width:100%;
+    max-width:560px;
+    margin:0 auto;
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:0;
+  }
+
+  /* tiny quiet sans label + prompt */
+  .label,
+  .prompt,
+  .re,
+  .copy,
+  .nudge{
+    font-family:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  }
+
+  .label{
+    font-size:11px;
+    letter-spacing:0.42em;
+    text-transform:uppercase;
+    color:var(--rose-dim);
+    font-weight:600;
+    margin-bottom:54px;
+    padding-left:0.42em; /* optical balance for letter-spacing */
+  }
+
+  .re{
+    font-size:13px;
+    letter-spacing:0.06em;
+    color:var(--rose);
+    margin-bottom:26px;
+    min-height:18px;
+    opacity:0;
+    transition:opacity 380ms ease;
+  }
+
+  /* the dominant element */
+  .verdict{
+    font-size:clamp(27px,6.4vw,40px);
+    line-height:1.28;
+    font-weight:400;
+    color:var(--verdict);
+    letter-spacing:0.002em;
+    margin:0;
+    max-width:18em;
+    min-height:1.28em;
+
+    /* fade-up reveal */
+    opacity:0;
+    transform:translateY(14px);
+    transition:opacity 400ms ease, transform 400ms cubic-bezier(.22,.61,.36,1);
+  }
+
+  .stage.revealed .re{opacity:1;}
+  .stage.revealed .verdict{opacity:1;transform:translateY(0);}
+
+  .controls{
+    margin-top:58px;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:18px;
+  }
+
+  .prompt{
+    font-size:12px;
+    letter-spacing:0.16em;
+    text-transform:lowercase;
+    color:var(--rose-dim);
+  }
+
+  .inputrow{
+    width:100%;
+    max-width:300px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+  }
+
+  #name{
+    width:100%;
+    background:transparent;
+    border:none;
+    border-bottom:1px solid var(--rose-faint);
+    color:var(--verdict);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    font-size:20px;
+    text-align:center;
+    padding:8px 4px 10px;
+    outline:none;
+    caret-color:var(--rose);
+    transition:border-color 280ms ease;
+  }
+  #name::placeholder{color:rgba(236,230,228,0.26);font-style:italic;}
+  #name:focus{border-bottom-color:var(--rose-dim);}
+
+  .buttons{
+    display:flex;
+    gap:14px;
+    align-items:center;
+    justify-content:center;
+    flex-wrap:wrap;
+  }
+
+  button{
+    font-family:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+    background:transparent;
+    border:1px solid var(--rose-faint);
+    color:var(--rose);
+    font-size:11px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    padding:10px 20px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:border-color 240ms ease, color 240ms ease, opacity 240ms ease;
+  }
+  button:hover{border-color:var(--rose-dim);}
+  button:active{opacity:0.7;}
+
+  #copy{
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 360ms ease, border-color 240ms ease, color 240ms ease;
+  }
+  .stage.revealed #copy{opacity:1;pointer-events:auto;}
+
+  .nudge{
+    font-size:11px;
+    letter-spacing:0.12em;
+    color:var(--rose-dim);
+    min-height:14px;
+    opacity:0;
+    transition:opacity 240ms ease;
+  }
+  .nudge.show{opacity:1;}
+
+  @media (max-width:340px){
+    .label{margin-bottom:40px;}
+    .controls{margin-top:42px;}
+    .verdict{font-size:25px;}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .verdict,.re,#copy,.nudge{transition:opacity 1ms;}
+    .verdict{transform:none;}
+  }
+</style>
+</head>
+<body>
+  <main class="stage" id="stage">
+    <div class="label">Last Text</div>
+    <div class="re" id="re"></div>
+    <p class="verdict" id="verdict"></p>
+
+    <div class="controls">
+      <div class="prompt">type a name. it knows.</div>
+      <div class="inputrow">
+        <input id="name" type="text" autocomplete="off" autocorrect="off"
+               autocapitalize="words" spellcheck="false"
+               placeholder="first name" aria-label="first name of the last person you texted" />
+        <div class="buttons">
+          <button id="go" type="button">Read it</button>
+          <button id="copy" type="button">Copy</button>
+        </div>
+      </div>
+      <div class="nudge" id="nudge">type a name first.</div>
+    </div>
+  </main>
+
+  <!-- CORE: pure, DOM-free logic. Kept side-effect-free so tests can eval it directly. -->
+  <script id="lasttext-core">
+  (function(root){
+    "use strict";
+
+    // ~40 verdicts. Voice: second person, present tense, observational, knowing.
+    // Never cruel, never sexual, never about appearance. The safe side of sharp.
+    var VERDICTS = [
+      "You texted them because the quiet got too honest, not because you had news.",
+      "They're the name your thumb finds before your brain catches up.",
+      "You already wrote the reply in your head. You sent the other one anyway.",
+      "This is the conversation you keep half-open so it can't fully close.",
+      "You're not waiting for them to answer. You're waiting for them to start.",
+      "You text them when you want to be talked out of something.",
+      "They get the version of you that you edit out for everyone else.",
+      "You reach for them at the hour when nothing you say can be taken back.",
+      "You keep the thread warm so you never have to admit it's over.",
+      "They're who you tell instead of who you should.",
+      "You said no rush. You have been checking since.",
+      "This name is your weather. When it changes, so do you.",
+      "You text them to feel near someone without deciding anything.",
+      "You're rehearsing a bigger conversation on a smaller one.",
+      "They're the person you'd panic-text first. That's your real address.",
+      "You typed three things and sent the safest one.",
+      "You let it go to read. You did not let it go.",
+      "You text them the way some people check a lock they already locked.",
+      "They're a habit you keep calling a feeling.",
+      "You wanted to be seen tonight, so you picked the one who looks.",
+      "You keep them close enough to miss and far enough to blame the distance.",
+      "You sent that to start something, then called it just saying hi.",
+      "They're who you talk to when the day didn't go the way you told people.",
+      "You text them to find out how you feel, not to tell them.",
+      "This is the name you protect from your own honesty.",
+      "You're keeping a door open in a house you said you left.",
+      "You text them last because they're the one you can't risk first.",
+      "You wanted a witness, not a reply.",
+      "They get the texts you write standing in the kitchen at midnight.",
+      "You ask them small things so you can keep asking.",
+      "You're not lonely for people. You're lonely for that one.",
+      "You reread your own message more than you'll reread theirs.",
+      "They're the exception you keep making to the rule you keep stating.",
+      "You send a small hello and mean something you won't type.",
+      "You keep this one in present tense long after it turned to past.",
+      "You text them to put off the conversation you actually owe yourself.",
+      "You're choosing the easy hello over the hard goodbye, again.",
+      "They're the answer you go to before you've finished the question.",
+      "You told everyone you moved on. You kept the thread.",
+      "You text them so the night has somewhere to land."
+    ];
+
+    // Normalise: trim, lowercase, collapse internal whitespace.
+    // "Sarah", "sarah ", " SARAH ", "Sarah" all map to the same key.
+    function normalizeName(name){
+      return String(name == null ? "" : name)
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+    }
+
+    // Deterministic FNV-1a 32-bit hash. No randomness, no clock.
+    function hashString(s){
+      var h = 0x811c9dc5;
+      for(var i = 0; i < s.length; i++){
+        h ^= s.charCodeAt(i);
+        h = (h * 0x01000193) >>> 0; // keep unsigned 32-bit
+      }
+      return h >>> 0;
+    }
+
+    // name -> one verdict (same name always -> same verdict). null for empty.
+    function verdictFor(name){
+      var key = normalizeName(name);
+      if(key === "") return null;
+      var idx = hashString(key) % VERDICTS.length;
+      return VERDICTS[idx];
+    }
+
+    root.LastText = {
+      VERDICTS: VERDICTS,
+      normalizeName: normalizeName,
+      hashString: hashString,
+      verdictFor: verdictFor
+    };
+  })(typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this));
+  </script>
+
+  <!-- DOM wiring -->
+  <script>
+  (function(){
+    "use strict";
+    var LT = window.LastText;
+    var stage   = document.getElementById("stage");
+    var reEl    = document.getElementById("re");
+    var verdict = document.getElementById("verdict");
+    var input   = document.getElementById("name");
+    var goBtn   = document.getElementById("go");
+    var copyBtn = document.getElementById("copy");
+    var nudge   = document.getElementById("nudge");
+
+    var current = null; // current verdict text (for copy)
+
+    function showNudge(){
+      nudge.classList.add("show");
+      window.clearTimeout(showNudge._t);
+      showNudge._t = window.setTimeout(function(){ nudge.classList.remove("show"); }, 1600);
+    }
+
+    function reveal(){
+      var raw = input.value;
+      var v = LT.verdictFor(raw);
+      if(v === null){
+        showNudge();
+        return;
+      }
+      nudge.classList.remove("show");
+      current = v;
+
+      // re-trigger fade-up cleanly even on repeat reads
+      stage.classList.remove("revealed");
+      // display the name the user typed (trimmed), name not the focus
+      reEl.textContent = "re: " + raw.trim().replace(/\s+/g, " ");
+      verdict.textContent = v;
+      copyBtn.textContent = "Copy";
+
+      // force reflow so the transition restarts
+      void verdict.offsetWidth;
+      requestAnimationFrame(function(){
+        stage.classList.add("revealed");
+      });
+    }
+
+    function doCopy(){
+      if(!current) return;
+      var share = 'LAST TEXT — "' + current + '" → lasttext.[url]';
+      var done = function(){
+        copyBtn.textContent = "Copied";
+        window.clearTimeout(doCopy._t);
+        doCopy._t = window.setTimeout(function(){ copyBtn.textContent = "Copy"; }, 1500);
+      };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(share).then(done, function(){ fallbackCopy(share); done(); });
+      } else {
+        fallbackCopy(share);
+        done();
+      }
+    }
+
+    function fallbackCopy(text){
+      try{
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly","");
+        ta.style.position = "absolute";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }catch(e){ /* nothing more we can do */ }
+    }
+
+    goBtn.addEventListener("click", reveal);
+    copyBtn.addEventListener("click", doCopy);
+    input.addEventListener("keydown", function(e){
+      if(e.key === "Enter"){ e.preventDefault(); reveal(); }
+    });
+
+    input.focus();
+  })();
+  </script>
+</body>
+</html>
