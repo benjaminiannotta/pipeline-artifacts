@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const htmlPath = path.join(__dirname, "..", "lasttext.html");
+const htmlPath = path.join(__dirname, "..", "artifacts", "last-text", "index.html");
 const html = fs.readFileSync(htmlPath, "utf8");
 
 // Pull out the <script id="lasttext-core"> ... </script> block verbatim.
