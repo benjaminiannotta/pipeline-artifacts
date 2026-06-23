@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PASTE CLEAN</title>
+<meta name="description" content="Paste messy text and get clean, plain text back. Strips tracking links, invisible characters, and smart-quote junk. Runs entirely in your browser." />
+<style>
+  :root{
+    --bg:#F7F7F5;          /* off-white page          */
+    --ink:#1A1A1A;         /* dark readable text      */
+    --teal:#2E8B7A;        /* calm trustworthy accent */
+    --teal-dark:#246c5f;
+    --teal-faint:rgba(46,139,122,0.12);
+    --card:#FFFFFF;        /* output sits on a card   */
+    --inset:#EFEFEA;       /* input slightly recessed */
+    --line:#E3E3DD;        /* hairline borders        */
+    --muted:#6B6B66;       /* quiet labels & stats    */
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    line-height:1.5;
+    padding:40px 22px 56px;
+  }
+
+  .wrap{width:100%;max-width:720px;margin:0 auto;}
+
+  /* ---- header / trust ---- */
+  header{margin-bottom:26px;}
+  .title{
+    display:flex;align-items:center;gap:11px;
+  }
+  .title h1{
+    font-size:clamp(22px,5vw,28px);
+    font-weight:650;letter-spacing:0.14em;margin:0;
+    text-transform:uppercase;
+  }
+  .shield{width:22px;height:22px;color:var(--teal);flex:none;}
+  .trust{
+    display:flex;align-items:center;gap:7px;
+    margin-top:10px;font-size:13.5px;color:var(--muted);
+  }
+  .trust .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);flex:none;}
+
+  /* ---- field blocks ---- */
+  .field{margin-top:22px;}
+  .fhead{
+    display:flex;align-items:baseline;justify-content:space-between;
+    margin-bottom:8px;min-height:20px;
+  }
+  .flabel{
+    font-size:11px;letter-spacing:0.16em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;
+  }
+
+  textarea{
+    width:100%;
+    font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    font-size:14px;line-height:1.6;
+    color:var(--ink);
+    border-radius:12px;
+    padding:14px 15px;
+    resize:vertical;
+    outline:none;
+    tab-size:2;
+    white-space:pre;            /* show spacing honestly; horizontal scroll if needed */
+    overflow:auto;
+  }
+  /* input: gently inset */
+  #input{
+    background:var(--inset);
+    border:1px solid var(--line);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,0.04);
+    min-height:150px;
+  }
+  #input::placeholder{color:#A6A69E;}
+  #input:focus{border-color:var(--teal);box-shadow:inset 0 1px 2px rgba(0,0,0,0.04),0 0 0 3px var(--teal-faint);}
+
+  /* output: on a faint white card */
+  #output{
+    background:var(--card);
+    border:1px solid var(--line);
+    box-shadow:0 1px 2px rgba(0,0,0,0.03);
+    min-height:150px;
+    color:var(--ink);
+  }
+  #output:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-faint);}
+
+  /* ---- copy button ---- */
+  .copy{
+    font-family:inherit;
+    border:1px solid var(--teal);
+    background:var(--teal);
+    color:#fff;
+    font-size:12px;letter-spacing:0.06em;font-weight:600;
+    padding:7px 16px;border-radius:999px;cursor:pointer;
+    transition:background 160ms ease,opacity 160ms ease,transform 90ms ease;
+  }
+  .copy:hover{background:var(--teal-dark);border-color:var(--teal-dark);}
+  .copy:active{transform:translateY(1px);}
+  .copy:disabled{opacity:0.45;cursor:default;}
+  .copy.done{background:#fff;color:var(--teal);}
+
+  /* ---- stats ---- */
+  .stats{
+    margin-top:12px;font-size:13px;color:var(--muted);
+    font-variant-numeric:tabular-nums;min-height:19px;
+    transition:color 200ms ease;
+  }
+  .stats.flash{color:var(--teal);}
+  .stats.clean{color:var(--teal);}
+
+  /* ---- detail breakdown ---- */
+  details.breakdown{margin-top:12px;}
+  details.breakdown summary{
+    font-size:12px;color:var(--muted);cursor:pointer;
+    list-style:none;display:inline-flex;align-items:center;gap:6px;
+    user-select:none;
+  }
+  details.breakdown summary::-webkit-details-marker{display:none;}
+  details.breakdown summary .chev{transition:transform 160ms ease;}
+  details.breakdown[open] summary .chev{transform:rotate(90deg);}
+  .brows{margin-top:10px;border-top:1px solid var(--line);}
+  .brow{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:7px 2px;font-size:13px;border-bottom:1px solid var(--line);
+  }
+  .brow .k{color:var(--ink);}
+  .brow .v{font-variant-numeric:tabular-nums;color:var(--muted);}
+  .brow .v.hit{color:var(--teal);font-weight:600;}
+
+  /* ---- toggles ---- */
+  .toggles{
+    margin-top:26px;padding-top:20px;border-top:1px solid var(--line);
+    display:flex;flex-wrap:wrap;gap:10px 18px;
+  }
+  .toggles .legend{
+    width:100%;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;margin-bottom:4px;
+  }
+  .tog{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:13px;color:var(--ink);cursor:pointer;user-select:none;
+  }
+  .tog input{
+    appearance:none;-webkit-appearance:none;
+    width:34px;height:20px;border-radius:999px;
+    background:#D7D7D0;position:relative;cursor:pointer;
+    transition:background 160ms ease;flex:none;outline:none;
+  }
+  .tog input:focus-visible{box-shadow:0 0 0 3px var(--teal-faint);}
+  .tog input::after{
+    content:"";position:absolute;top:2px;left:2px;
+    width:16px;height:16px;border-radius:50%;background:#fff;
+    box-shadow:0 1px 2px rgba(0,0,0,0.25);
+    transition:transform 160ms ease;
+  }
+  .tog input:checked{background:var(--teal);}
+  .tog input:checked::after{transform:translateX(14px);}
+
+  footer{
+    margin-top:34px;font-size:12px;color:#9A9A93;text-align:center;
+    letter-spacing:0.02em;
+  }
+
+  @media (max-width:480px){
+    body{padding:28px 16px 44px;}
+    .toggles{gap:12px 14px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="title">
+        <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2 4 5v6c0 5 3.4 8.3 8 11 4.6-2.7 8-6 8-11V5l-8-3Z"></path>
+          <path d="m9 12 2 2 4-4"></path>
+        </svg>
+        <h1>Paste Clean</h1>
+      </div>
+      <p class="trust"><span class="dot"></span>Cleans your text in your browser. Nothing is uploaded.</p>
+    </header>
+
+    <section class="field">
+      <div class="fhead"><label class="flabel" for="input">Paste here</label></div>
+      <textarea id="input" spellcheck="false" autocomplete="off" autocapitalize="off"
+        placeholder="Paste any messy text or link&hellip;"
+        aria-label="Paste messy text here"></textarea>
+    </section>
+
+    <section class="field">
+      <div class="fhead">
+        <span class="flabel">Clean</span>
+        <button id="copy" class="copy" type="button" disabled>Copy</button>
+      </div>
+      <textarea id="output" readonly spellcheck="false"
+        placeholder="Clean text appears here, instantly."
+        aria-label="Cleaned text output"></textarea>
+      <div id="stats" class="stats" role="status" aria-live="polite">Paste something to clean.</div>
+
+      <details class="breakdown">
+        <summary><span class="chev">&rsaquo;</span>what got removed?</summary>
+        <div class="brows" id="bdrows"></div>
+      </details>
+    </section>
+
+    <section class="toggles" aria-label="cleaning options">
+      <div class="legend">Cleaning steps</div>
+      <label class="tog"><input type="checkbox" id="t-tracking" checked />Strip tracking parameters</label>
+      <label class="tog"><input type="checkbox" id="t-invisible" checked />Remove invisible characters</label>
+      <label class="tog"><input type="checkbox" id="t-punctuation" checked />Normalise smart punctuation</label>
+      <label class="tog"><input type="checkbox" id="t-whitespace" checked />Collapse whitespace</label>
+      <label class="tog"><input type="checkbox" id="t-linebreaks" checked />Fix line breaks</label>
+    </section>
+
+    <footer>No login. No upload. No storage. Paste, clean, copy, gone.</footer>
+  </main>
+
+  <!-- CORE: pure, DOM-free cleaning pipeline. Side-effect-free so the test evals it directly.
+       The test reuses THIS exact source, so it can never drift from what ships.
+       Every special character is written as a \uXXXX escape on purpose: the source stays
+       printable and ASCII-only, so invisible chars can't be mangled by an editor or git. -->
+  <script id="pasteclean-core">
+  (function(root){
+    "use strict";
+
+    // Known tracking query-param keys (lowercased). utm_* is matched by prefix.
+    // Deliberately conservative: real-but-rarely-meaningful params only, so we
+    // never strip something a page actually needs. `ref` is included per brief.
+    var TRACKING_PARAMS = {
+      fbclid:1, gclid:1, dclid:1, gbraid:1, wbraid:1, msclkid:1,
+      igshid:1, igsh:1, mc_eid:1, mc_cid:1, ref:1, ref_src:1, ref_url:1,
+      yclid:1, mkt_tok:1, _hsenc:1, _hsmi:1, vero_id:1, vero_conv:1,
+      oly_enc_id:1, oly_anon_id:1, _openstat:1, spm:1, scm:1, twclid:1,
+      ttclid:1, s_cid:1, mkwid:1, pcrid:1, ef_id:1, _branch_match_id:1,
+      fb_action_ids:1, fb_action_types:1, fb_source:1
+    };
+
+    function isTrackingKey(key){
+      var k = String(key).toLowerCase();
+      if(k.indexOf("utm_") === 0) return true;
+      return Object.prototype.hasOwnProperty.call(TRACKING_PARAMS, k);
+    }
+
+    // ---- Op 5: fix line breaks. CRLF / lone CR / U+2028 / U+2029 -> \n ----
+    function normalizeLineBreaks(text){
+      var count = 0;
+      var t = String(text).replace(/\r\n?/g, function(){ count++; return "\n"; });
+      t = t.replace(new RegExp("[" + String.fromCharCode(0x2028, 0x2029) + "]", "g"), function(){ count++; return "\n"; });
+      return { text: t, count: count };
+    }
+
+    // ---- Op 1: strip tracking params from any http(s) URL, keep the clean link ----
+    function stripTracking(text){
+      var count = 0;
+      var t = String(text).replace(/https?:\/\/[^\s<>"']+/g, function(url){
+        // peel off trailing sentence punctuation that isn't part of the link
+        var trail = "";
+        var tm = url.match(/[)\]}>.,;:!?]+$/);
+        if(tm){ trail = tm[0]; url = url.slice(0, url.length - trail.length); }
+        // split off fragment
+        var frag = "";
+        var h = url.indexOf("#");
+        if(h >= 0){ frag = url.slice(h); url = url.slice(0, h); }
+        var q = url.indexOf("?");
+        if(q < 0){ return url + frag + trail; }
+        var base = url.slice(0, q);
+        // tolerate a malformed doubled "??" by dropping a leading run of "?"
+        var parts = url.slice(q + 1).replace(/^\?+/, "").split("&");
+        var kept = [];
+        for(var i = 0; i < parts.length; i++){
+          var p = parts[i];
+          if(p === "") continue;
+          var eq = p.indexOf("=");
+          var key = eq >= 0 ? p.slice(0, eq) : p;
+          if(isTrackingKey(key)) count++;
+          else kept.push(p);
+        }
+        return base + (kept.length ? "?" + kept.join("&") : "") + frag + trail;
+      });
+      return { text: t, count: count };
+    }
+
+    // ---- Op 2: remove invisible / zero-width / formatting characters (delete them) ----
+    // Covers: soft hyphen (00AD), Mongolian vowel sep (180E), zero-width space/non-joiner/
+    // joiner (200B-200D), LRM/RLM (200E-200F), bidi embeddings & overrides (202A-202E),
+    // word joiner (2060), bidi isolates (2066-2069), BOM / zero-width no-break space (FEFF).
+    // NOTE: non-breaking space is intentionally NOT here - it is a visible space and is
+    // normalised (replaced) by punctuation below, not deleted.
+    var INVISIBLE_RE = (function(){
+      // soft hyphen, Mongolian vowel sep, ZW space/non-joiner/joiner, LRM/RLM,
+      // bidi embeddings+overrides, word joiner, bidi isolates, BOM.
+      var codes = [0x00AD, 0x180E, [0x200B,0x200F], [0x202A,0x202E], 0x2060, [0x2066,0x2069], 0xFEFF], cls = "";
+      for(var i=0;i<codes.length;i++){ var c=codes[i];
+        cls += (typeof c === "number") ? String.fromCharCode(c)
+                                       : (String.fromCharCode(c[0]) + "-" + String.fromCharCode(c[1])); }
+      return new RegExp("[" + cls + "]", "g");
+    })();
+    function removeInvisible(text){
+      var count = 0;
+      var t = String(text).replace(INVISIBLE_RE, function(){ count++; return ""; });
+      return { text: t, count: count };
+    }
+
+    // ---- Op 3: normalise smart punctuation (replace with plain ASCII) ----
+    // curly single/double quotes -> ' and " ; en/em dash -> - ; ellipsis -> ... ;
+    // non-breaking space (normal 00A0 & narrow 202F) -> normal space.
+    var PUNCT_PAIRS = [
+      [0x2018,"'"], [0x2019,"'"], [0x201A,"'"], [0x201B,"'"],          // single curly quotes
+      [0x201C,String.fromCharCode(34)], [0x201D,String.fromCharCode(34)],   // double curly quotes
+      [0x201E,String.fromCharCode(34)], [0x201F,String.fromCharCode(34)],
+      [0x2013,"-"], [0x2014,"-"],                                           // en / em dash
+      [0x2026,"..."],                                                       // ellipsis
+      [0x00A0," "], [0x202F," "]                                            // nbsp / narrow nbsp
+    ];
+    var PUNCT_MAP = {};
+    var _punctChars = "";
+    for(var _pi=0; _pi<PUNCT_PAIRS.length; _pi++){
+      var _pch = String.fromCharCode(PUNCT_PAIRS[_pi][0]);
+      PUNCT_MAP[_pch] = PUNCT_PAIRS[_pi][1];
+      _punctChars += _pch;
+    }
+    var PUNCT_RE = new RegExp("[" + _punctChars + "]", "g");
+    function normalizePunctuation(text){
+      var count = 0;
+      var t = String(text).replace(PUNCT_RE, function(ch){ count++; return PUNCT_MAP[ch]; });
+      return { text: t, count: count };
+    }
+
+    // ---- Op 4: collapse whitespace (only ever removes characters) ----
+    function collapseWhitespace(text){
+      var before = String(text);
+      var t = before.replace(/[ \t]{2,}/g, " "); // runs of spaces/tabs -> one space
+      t = t.replace(/[ \t]+$/gm, "");            // trailing spaces on each line
+      t = t.replace(/\n{3,}/g, "\n\n");          // 2+ blank lines -> one blank line
+      return { text: t, count: before.length - t.length };
+    }
+
+    // ---- the deterministic pipeline ----
+    // Order matters: line breaks normalised first, URL + invisible removal BEFORE
+    // whitespace collapse so the whitespace count is accurate (per brief build notes).
+    function clean(input, enabled){
+      input = (input == null) ? "" : String(input);
+      enabled = enabled || {};
+      function on(k){ return enabled[k] !== false; } // default ON
+      var stats = { tracking:0, invisible:0, punctuation:0, whitespace:0, linebreaks:0 };
+      var t = input, r;
+      if(on("linebreaks"))  { r = normalizeLineBreaks(t);  t = r.text; stats.linebreaks  = r.count; }
+      if(on("tracking"))    { r = stripTracking(t);        t = r.text; stats.tracking    = r.count; }
+      if(on("invisible"))   { r = removeInvisible(t);      t = r.text; stats.invisible   = r.count; }
+      if(on("punctuation")) { r = normalizePunctuation(t); t = r.text; stats.punctuation = r.count; }
+      if(on("whitespace"))  { r = collapseWhitespace(t);   t = r.text; stats.whitespace  = r.count; }
+      var changed = (t !== input) || stats.tracking > 0 || stats.invisible > 0 ||
+                    stats.punctuation > 0 || stats.whitespace > 0 || stats.linebreaks > 0;
+      return { text: t, stats: stats, changed: changed };
+    }
+
+    // ---- the one quiet stats line (pure, so the test pins it too) ----
+    function formatStats(result, hasInput){
+      if(!hasInput) return "Paste something to clean.";
+      if(!result.changed) return "already clean";
+      var s = result.stats, segs = [];
+      if(s.tracking > 0)   segs.push(s.tracking + " tracking param" + (s.tracking === 1 ? "" : "s"));
+      if(s.invisible > 0)  segs.push(s.invisible + " invisible char" + (s.invisible === 1 ? "" : "s"));
+      if(s.punctuation > 0) segs.push(s.punctuation + " smart punctuation");
+      // "whitespace tidied" is the umbrella when any spacing changed (incl. line breaks);
+      // but if ONLY line endings were normalised, name that precisely instead.
+      if(s.whitespace > 0) segs.push("whitespace tidied");
+      else if(s.linebreaks > 0) segs.push("line breaks fixed");
+      return segs.join(" " + String.fromCharCode(0x00B7) + " ");
+    }
+
+    root.PasteClean = {
+      TRACKING_PARAMS: TRACKING_PARAMS,
+      isTrackingKey: isTrackingKey,
+      normalizeLineBreaks: normalizeLineBreaks,
+      stripTracking: stripTracking,
+      removeInvisible: removeInvisible,
+      normalizePunctuation: normalizePunctuation,
+      collapseWhitespace: collapseWhitespace,
+      clean: clean,
+      formatStats: formatStats
+    };
+  })(typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this));
+  </script>
+
+  <!-- DOM wiring. No network, no storage — just reads the boxes and calls the core. -->
+  <script>
+  (function(){
+    "use strict";
+    var PC = window.PasteClean;
+    var input  = document.getElementById("input");
+    var output = document.getElementById("output");
+    var statsEl = document.getElementById("stats");
+    var copyBtn = document.getElementById("copy");
+    var bdrows = document.getElementById("bdrows");
+
+    var toggleEls = {
+      tracking:    document.getElementById("t-tracking"),
+      invisible:   document.getElementById("t-invisible"),
+      punctuation: document.getElementById("t-punctuation"),
+      whitespace:  document.getElementById("t-whitespace"),
+      linebreaks:  document.getElementById("t-linebreaks")
+    };
+
+    var BD = [
+      ["tracking", "Tracking parameters"],
+      ["invisible", "Invisible characters"],
+      ["punctuation", "Smart punctuation"],
+      ["whitespace", "Whitespace trimmed"],
+      ["linebreaks", "Line breaks fixed"]
+    ];
+
+    function enabledMap(){
+      return {
+        tracking:    toggleEls.tracking.checked,
+        invisible:   toggleEls.invisible.checked,
+        punctuation: toggleEls.punctuation.checked,
+        whitespace:  toggleEls.whitespace.checked,
+        linebreaks:  toggleEls.linebreaks.checked
+      };
+    }
+
+    function flashStats(){
+      statsEl.classList.add("flash");
+      window.clearTimeout(flashStats._t);
+      flashStats._t = window.setTimeout(function(){ statsEl.classList.remove("flash"); }, 260);
+    }
+
+    function renderBreakdown(stats){
+      var html = "";
+      for(var i = 0; i < BD.length; i++){
+        var key = BD[i][0], label = BD[i][1], n = stats[key] || 0;
+        html += '<div class="brow"><span class="k">' + label +
+                '</span><span class="v' + (n > 0 ? " hit" : "") + '">' + n + '</span></div>';
+      }
+      bdrows.innerHTML = html;
+    }
+
+    var lastStatsText = "";
+    function run(){
+      var raw = input.value;
+      var hasInput = raw.length > 0;
+      var result = PC.clean(raw, enabledMap());
+
+      output.value = result.text;
+      renderBreakdown(result.stats);
+
+      var text = PC.formatStats(result, hasInput);
+      statsEl.textContent = text;
+      statsEl.classList.toggle("clean", hasInput && !result.changed);
+      if(text !== lastStatsText && result.changed){ flashStats(); }
+      lastStatsText = text;
+
+      var canCopy = result.text.length > 0;
+      copyBtn.disabled = !canCopy;
+      if(copyBtn.textContent !== "Copy" && !copyBtn.classList.contains("done")){
+        copyBtn.textContent = "Copy";
+      }
+    }
+
+    function fallbackCopy(t){
+      try{
+        var ta = document.createElement("textarea");
+        ta.value = t; ta.setAttribute("readonly", "");
+        ta.style.position = "absolute"; ta.style.left = "-9999px";
+        document.body.appendChild(ta); ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }catch(e){ /* nothing more we can do */ }
+    }
+
+    function doCopy(){
+      var t = output.value;
+      if(!t) return;
+      var done = function(){
+        copyBtn.textContent = "Copied";
+        copyBtn.classList.add("done");
+        window.clearTimeout(doCopy._t);
+        doCopy._t = window.setTimeout(function(){
+          copyBtn.textContent = "Copy";
+          copyBtn.classList.remove("done");
+        }, 1400);
+      };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(t).then(done, function(){ fallbackCopy(t); done(); });
+      }else{
+        fallbackCopy(t); done();
+      }
+    }
+
+    input.addEventListener("input", run);
+    copyBtn.addEventListener("click", doCopy);
+    for(var k in toggleEls){
+      if(toggleEls.hasOwnProperty(k)) toggleEls[k].addEventListener("change", run);
+    }
+
+    run();          // initialise (empty -> "Paste something to clean.")
+    input.focus();
+  })();
+  </script>
+</body>
+</html>
