@@ -72,17 +72,28 @@ Timing and reveal:
 - A longer pause (about 1.5s of near-empty frame) between beat 4 and beat 5. Beat 4 is the gut-punch; let the silence sit before the catch (beat 5) arrives.
 - Beat 6 ("Today it still rings.") rises/fades in and STAYS. It does not fade out. END ON STILLNESS: let beat 6 sit silently, held, with the signature visible. The silence is what signals "this matters." This is the shareable final frame.
 
-The thread (the signature animation):
-- The strung-heart thread starts in its frayed state (Rust mood, regret).
-- Across beats 1 to 4 the thread stays frayed, faint, present in a corner or beneath the text.
-- From beat 5 into beat 6, the frayed thread gently mends toward whole (the strings re-tension). Subtle, slow, not a flashy animation. It is the visual echo of "it still rings", the connection is not broken yet.
-- Optional: on the final frame, one faint pulse along the mended thread, like a string still ringing. One pulse, not a loop. Restraint.
+THE VISUAL SUBJECT (this is the fix for slop, read carefully):
+The post is NOT text on a plain ground with a small logo. The whole frame is a living field. The text sits quiet inside it. The field is the visual subject, and it must carry the emotion even with the sound off and even if the viewer does not read every word. If you stripped the words out, the motion alone should still feel like regret softening into "it still rings". That is the test.
+
+The field (fills the entire frame, behind and around the text):
+- A field of fine drifting THREADS (the heartstrings, literal) woven with finer DUST/PARTICLES. Threads carry the meaning; particles carry the atmosphere and depth. Rust palette throughout: threads in the thread accent #b75f3c at low opacity, particles fainter, all over the warm #2d1c17 ground (radial, never flat black).
+- Motion is a NOISE FLOW FIELD, not random scatter and not mouse-driven. Use a small simplex/Perlin noise function (write it inline, no library): sample noise at each element's position and time, turn it into a flow angle, move the element along that invisible current. This is what reads as organic and alive rather than mechanical. Slow, ambient, non-intrusive: it gives depth, it never competes with the words.
+- SELF-DRIVING. This is recorded as a video, so there is NO cursor and NO interaction to rely on. All motion is autonomous, driven by time and by the story beats below. Do not build mouse-reactive behaviour as the main effect.
+
+The field REACTS to the six beats (this is what makes it a story, not a screensaver):
+- Beats 1 to 2 (the ordinary opening): calm, slow drift. The field breathes.
+- Beats 3 to 4 (the realisation, then the gut-punch): the threads draw tauter and tense, the flow tightens, faint strings pull toward breaking. The field feels strained by beat 4.
+- The silence after beat 4: the field nearly STILLS. Motion almost stops. Held breath. This is the most important moment; let it go quiet.
+- Beats 5 to 6 (the catch, the open door): the strung-heart signature, which lives within this same field, mends from frayed toward whole; the threads settle and warm; the particles ease into a gentle resonant drift. The field lifts. On the final held frame (beat 6), one faint single pulse travels along the mended strings, like a string still ringing. One pulse, not a loop.
+
+The strung-heart signature is part of this field, not a separate logo bolted to the bottom. It is the focal knot the threads resolve into by the end. It still carries the per-emotion state (frayed at the start, whole by beat 6) per HEARTSTRINGS-BRAND.md.
 
 Controls and respect:
-- prefers-reduced-motion: if set, skip fades and the thread animation; show beats as a simple sequence the reader advances, or show all beats stacked statically ending on beat 6. No motion forced on anyone.
+- prefers-reduced-motion: if set, drop the flow-field animation entirely; show the six beats as a simple static sequence on the Rust ground ending held on beat 6, with the strung-heart shown whole. No motion forced on anyone.
+- Performance: keep the element count sane (a few hundred at most) so it holds 30fps on a phone. Skip rendering anything off-frame. This must be smooth when screen-recorded.
 - Tap / click / spacebar advances to the next beat early (do not trap the reader in the timing). Reaching the end always lands on beat 6 held.
 
-Quality floor: responsive to mobile (this will be viewed on phones), readable contrast (Rust text #e7d5c4 on #2d1c17 passes), visible focus if any control is focusable.
+Quality floor: built for 9:16 mobile, readable contrast (Rust text #e7d5c4 on #2d1c17 passes), the text always legible ABOVE the field (the field must never make the words hard to read; dim the field locally behind the text if needed).
 
 ## Build notes for Code (stage 3, after the Design pass)
 - Single self-contained index.html, vanilla JS, no libraries, no build step, no network calls, no storage.
@@ -100,3 +111,6 @@ test/thecall.test.js must assert:
 6. No network calls (no fetch, no XMLHttpRequest, no external src).
 7. Beat 6 is the terminal state and does NOT fade out (it stays held as the final frame).
 8. A reduced-motion code path exists (prefers-reduced-motion is handled), so motion is not forced.
+9. A noise flow field exists in the source: an inline noise function (simplex/Perlin, no external library) drives the motion of the threads/particles. (Assert the noise function and a canvas/animation loop are present in the core; assert NO external script src and NO library import.)
+10. The field reacts to the story: the source references beat-driven state changes for the field (calm at the open, tense by beat 4, near-still in the silence, settling/warming by beat 6). At minimum assert the field's behaviour is keyed to the beat index, not a single constant animation.
+11. The strung-heart signature is present and resolves to its whole/mended state by the final beat (carried from the brand file).

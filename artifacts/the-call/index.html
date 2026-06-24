@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>THE CALL — HeartStrings</title>
+<meta name="description" content="The phone call you keep meaning to make. A living field of threads in the Rust palette, settling from regret into 'it still rings'." />
+<style>
+  :root{
+    /* Rust mood (Regret) — locked in HEARTSTRINGS-BRAND.md */
+    --bg:#2d1c17;
+    --text:#e7d5c4;
+    --thread:#b75f3c;
+    /* refined ease-out: brisk start, gentle settle. NEVER linear. */
+    --ease:cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:#160e0b;
+    color:var(--text);
+    font-family:"Newsreader","Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;min-height:100dvh;
+    overflow:hidden;
+  }
+
+  /* 9:16 vertical master (1080x1920). Letterboxed on wide screens, fills phones. */
+  .stage{
+    position:relative;
+    width:100%;
+    max-width:calc(100vh * 9 / 16);
+    max-width:calc(100dvh * 9 / 16);
+    height:100vh;height:100dvh;
+    aspect-ratio:9 / 16;
+    background:var(--bg);
+    overflow:hidden;
+    cursor:pointer;
+  }
+
+  /* the living field fills the entire frame */
+  #field{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1;}
+
+  /* local scrim keeps the words legible ABOVE the field */
+  .scrim{
+    position:absolute;inset:0;z-index:2;pointer-events:none;
+    background:radial-gradient(58% 34% at 50% 44%, rgba(45,28,23,0.74) 0%, rgba(45,28,23,0.40) 46%, rgba(45,28,23,0) 78%);
+  }
+
+  /* the strung-heart signature: the focal knot the threads resolve into */
+  .mark{
+    position:absolute;left:50%;top:60%;transform:translate(-50%,-50%);
+    width:min(33vw,148px);z-index:3;pointer-events:none;
+    opacity:0.62;
+  }
+  .mark svg{display:block;width:100%;height:auto;}
+  .mark .outline{stroke:var(--thread);opacity:0.6;}
+  .mark .str{stroke:var(--thread);}
+  .mark.ring .strings{animation:ring 2600ms var(--ease) 1 both;}
+  @keyframes ring{0%{opacity:1;}18%{opacity:1;}44%{opacity:0.4;}72%{opacity:1;}100%{opacity:1;}}
+
+  /* lines render centred in the safe middle band (top 14% / bottom 20% reserved) */
+  .lines{
+    position:absolute;left:8%;right:8%;top:14%;bottom:20%;z-index:4;
+    display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:none;
+  }
+  .line{
+    position:absolute;max-width:100%;margin:0;font-weight:400;
+    font-size:clamp(23px,6.4vw,40px);line-height:1.32;letter-spacing:0.01em;
+    color:var(--text);opacity:0;transform:translateY(11px);will-change:opacity,transform;
+    text-shadow:0 1px 18px rgba(22,14,11,0.55);
+  }
+  /* fade-in PLUS a slight upward rise — the rise is what reads as crafted */
+  .line.in{opacity:1;transform:translateY(0);}
+  .line.out{opacity:0;transform:translateY(-7px);}
+  .line.final{font-style:italic;}
+
+  /* locked HeartStrings wordmark, eased in only on the final held frame */
+  .signoff{
+    position:absolute;left:0;right:0;bottom:13%;z-index:4;
+    display:flex;align-items:center;justify-content:center;gap:0.16em;
+    color:var(--text);opacity:0;transition:opacity 1800ms var(--ease);pointer-events:none;
+    font-size:clamp(12px,3vw,16px);letter-spacing:0.05em;
+  }
+  .stage.is-final .signoff{opacity:0.46;}
+  .signoff .glyph{width:1.05em;height:1.05em;display:inline-block;vertical-align:middle;}
+  .signoff .glyph .outline{stroke:var(--text);opacity:0.85;}
+  .signoff .glyph .str{stroke:var(--text);opacity:0.85;}
+
+  .hint{
+    position:absolute;left:0;right:0;bottom:6%;z-index:5;text-align:center;
+    font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text);
+    opacity:0.3;transition:opacity 800ms var(--ease);pointer-events:none;
+    font-family:system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  }
+  .stage.started .hint{opacity:0;}
+  .stage:focus-visible{outline:2px solid var(--thread);outline-offset:-4px;}
+
+  /* ---- reduced motion: no field, beats stacked statically, ends on beat 6 ---- */
+  .stack{
+    position:absolute;left:8%;right:8%;top:12%;bottom:18%;z-index:4;
+    display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.05em;text-align:center;
+  }
+  .stack p{margin:0;font-weight:400;font-size:clamp(18px,4.4vw,26px);line-height:1.3;color:var(--text);opacity:0.82;}
+  .stack p.final{opacity:1;font-style:italic;font-size:clamp(21px,5vw,30px);}
+  @media (prefers-reduced-motion: reduce){.stage{cursor:default;} .hint{display:none;}}
+  body.reduced #field,
+  body.reduced .scrim,
+  body.reduced .lines,
+  body.reduced .hint{display:none;}
+  body.reduced .stack{display:flex;}
+  body.reduced .stage{background:radial-gradient(120% 80% at 50% 42%, #38241d 0%, var(--bg) 58%, #25160f 100%);}
+  body.reduced .signoff{opacity:0.46;}
+</style>
+</head>
+<body>
+  <main class="stage" id="stage" tabindex="0" role="img"
+        aria-label="The phone call you keep meaning to make. It still rings.">
+    <canvas id="field" aria-hidden="true"></canvas>
+    <div class="scrim" aria-hidden="true"></div>
+
+    <!-- the focal strung-heart (canonical SVG from HEARTSTRINGS-BRAND.md), frayed at first, whole by beat 6 -->
+    <div class="mark" id="mark" aria-hidden="true">
+      <svg viewBox="0 0 96 96">
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <polyline class="outline" points="48,90 22,53 8,33 10,19 20,9 32,10 43,19 48,27 53,19 64,10 76,9 86,19 88,33 74,53 48,90" stroke-width="1.4"/>
+          <g class="strings">
+            <line class="str" data-i="0" x1="29" y1="26" x2="29" y2="50" stroke-width="0.9"/>
+            <line class="str" data-i="1" x1="36" y1="20" x2="36" y2="64" stroke-width="0.9"/>
+            <line class="str" data-i="2" x1="43" y1="17" x2="43" y2="76" stroke-width="0.9"/>
+            <line class="str" data-i="3" x1="48" y1="25" x2="48" y2="84" stroke-width="0.9"/>
+            <line class="str" data-i="4" x1="53" y1="17" x2="53" y2="76" stroke-width="0.9"/>
+            <line class="str" data-i="5" x1="60" y1="20" x2="60" y2="64" stroke-width="0.9"/>
+            <line class="str" data-i="6" x1="67" y1="26" x2="67" y2="50" stroke-width="0.9"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+
+    <div class="lines" id="lines" aria-hidden="true"></div>
+    <div class="stack" id="stack" aria-hidden="true"></div>
+
+    <div class="signoff" id="signoff">
+      <span>Heart</span>
+      <svg class="glyph" viewBox="0 0 96 96" aria-hidden="true">
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <polyline class="outline" points="48,90 22,53 8,33 10,19 20,9 32,10 43,19 48,27 53,19 64,10 76,9 86,19 88,33 74,53 48,90" stroke-width="3"/>
+          <line class="str" x1="29" y1="26" x2="29" y2="50" stroke-width="2"/>
+          <line class="str" x1="36" y1="20" x2="36" y2="64" stroke-width="2"/>
+          <line class="str" x1="43" y1="17" x2="43" y2="76" stroke-width="2"/>
+          <line class="str" x1="48" y1="25" x2="48" y2="84" stroke-width="2"/>
+          <line class="str" x1="53" y1="17" x2="53" y2="76" stroke-width="2"/>
+          <line class="str" x1="60" y1="20" x2="60" y2="64" stroke-width="2"/>
+          <line class="str" x1="67" y1="26" x2="67" y2="50" stroke-width="2"/>
+        </g>
+      </svg>
+      <span>Strings</span>
+    </div>
+
+    <div class="hint" id="hint">tap to advance</div>
+  </main>
+
+  <!-- Pure, DOM-free-safe core. The test extracts THIS exact block and runs it.
+       The flow-field renderer lives here too but only mounts when a document exists. -->
+  <script id="the-call-core">
+  (function(){
+    "use strict";
+
+    /* ---- the payload (brief-05). Exact text, in order. Beat 4 = gut-punch,
+       beat 5 = the catch, beat 6 = the open door. The piece MUST end on 6. ---- */
+    var beats = [
+      "You said you'd call them this weekend.",
+      "You said that last weekend too.",
+      "There is a number in your phone you could press right now.",
+      "And one day there won't be.",
+      "But that day is not today.",
+      "Today it still rings."
+    ];
+
+    /* slow, unhurried timing (ms). The pacing is the emotion. */
+    var TIMING = {
+      fadeIn:1400, hold:2800, fadeOut:1000, breath:450,
+      gutPunchPause:1500   /* extra near-empty frame between beat 4 and beat 5 */
+    };
+
+    /* reveal schedule. Beat 6 is HELD (fadeOut 0). The extra silence sits
+       before beat 5 (index 4), right after the gut-punch of beat 4. */
+    function schedule(cfg){
+      cfg = cfg || TIMING;
+      return beats.map(function(text,i){
+        var isFinal = (i === beats.length - 1);
+        return {
+          index:i, text:text, fadeIn:cfg.fadeIn, hold:cfg.hold,
+          fadeOut:isFinal ? 0 : cfg.fadeOut,
+          pauseBefore:(i === 4) ? cfg.gutPunchPause : 0,
+          isFinal:isFinal
+        };
+      });
+    }
+
+    /* strung-heart mend: 0 = frayed (regret), 1 = whole (not broken yet).
+       Frayed through beats 1-4, easing whole across beats 5-6. */
+    function threadProgress(beatIndex){
+      if (beatIndex <= 3) return 0;
+      if (beatIndex === 4) return 0.5;
+      return 1;
+    }
+    var FRAY = [0.50,0.66,0.44,0.78,0.44,0.66,0.50];
+    function stringExtent(s,p){
+      var base = FRAY[s % FRAY.length];
+      if (p < 0) p = 0; else if (p > 1) p = 1;
+      return base + (1 - base) * p;
+    }
+
+    /* ---- inline 3D simplex noise (Gustavson), fixed permutation, no library.
+       Deterministic: noise3(x,y,z) is pure. Drives the flow field. ---- */
+    var GRAD3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],
+                 [1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+    var P = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,
+      240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,
+      237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,
+      111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,
+      73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,
+      52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,
+      28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,
+      19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,
+      179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,
+      50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+    var PERM = new Array(512), PMOD = new Array(512);
+    for (var pi = 0; pi < 512; pi++){ PERM[pi] = P[pi & 255]; PMOD[pi] = PERM[pi] % 12; }
+    function dot3(g,x,y,z){ return g[0]*x + g[1]*y + g[2]*z; }
+    function noise3(xin,yin,zin){
+      var F3 = 1/3, G3 = 1/6, n0,n1,n2,n3;
+      var s = (xin+yin+zin)*F3;
+      var i = Math.floor(xin+s), j = Math.floor(yin+s), k = Math.floor(zin+s);
+      var t = (i+j+k)*G3;
+      var x0 = xin-(i-t), y0 = yin-(j-t), z0 = zin-(k-t);
+      var i1,j1,k1,i2,j2,k2;
+      if (x0 >= y0){
+        if (y0 >= z0){ i1=1;j1=0;k1=0;i2=1;j2=1;k2=0; }
+        else if (x0 >= z0){ i1=1;j1=0;k1=0;i2=1;j2=0;k2=1; }
+        else { i1=0;j1=0;k1=1;i2=1;j2=0;k2=1; }
+      } else {
+        if (y0 < z0){ i1=0;j1=0;k1=1;i2=0;j2=1;k2=1; }
+        else if (x0 < z0){ i1=0;j1=1;k1=0;i2=0;j2=1;k2=1; }
+        else { i1=0;j1=1;k1=0;i2=1;j2=1;k2=0; }
+      }
+      var x1=x0-i1+G3, y1=y0-j1+G3, z1=z0-k1+G3;
+      var x2=x0-i2+2*G3, y2=y0-j2+2*G3, z2=z0-k2+2*G3;
+      var x3=x0-1+3*G3, y3=y0-1+3*G3, z3=z0-1+3*G3;
+      var ii=i&255, jj=j&255, kk=k&255, tt;
+      tt = 0.6-x0*x0-y0*y0-z0*z0; if (tt<0) n0=0; else { tt*=tt; n0=tt*tt*dot3(GRAD3[PMOD[ii+PERM[jj+PERM[kk]]]],x0,y0,z0); }
+      tt = 0.6-x1*x1-y1*y1-z1*z1; if (tt<0) n1=0; else { tt*=tt; n1=tt*tt*dot3(GRAD3[PMOD[ii+i1+PERM[jj+j1+PERM[kk+k1]]]],x1,y1,z1); }
+      tt = 0.6-x2*x2-y2*y2-z2*z2; if (tt<0) n2=0; else { tt*=tt; n2=tt*tt*dot3(GRAD3[PMOD[ii+i2+PERM[jj+j2+PERM[kk+k2]]]],x2,y2,z2); }
+      tt = 0.6-x3*x3-y3*y3-z3*z3; if (tt<0) n3=0; else { tt*=tt; n3=tt*tt*dot3(GRAD3[PMOD[ii+1+PERM[jj+1+PERM[kk+1]]]],x3,y3,z3); }
+      return 32.0*(n0+n1+n2+n3);
+    }
+
+    /* ---- the field REACTS to the beats: calm -> tense by beat 4 -> settling/
+       warming by beat 6. These params are keyed to the beat index, not a single
+       constant animation. Higher tension = threads pull tauter toward breaking;
+       warmth/attract = threads settle and resolve into the focal knot. ---- */
+    var FIELD = [
+      { speed:14, tension:0.12, flowScale:1.00, fade:0.10, warmth:0,   attract:0   }, /* beat 1 calm  */
+      { speed:13, tension:0.18, flowScale:1.05, fade:0.10, warmth:0,   attract:0   }, /* beat 2 calm  */
+      { speed:20, tension:0.50, flowScale:1.40, fade:0.13, warmth:0,   attract:0   }, /* beat 3 tensing */
+      { speed:26, tension:0.90, flowScale:1.85, fade:0.16, warmth:0,   attract:0   }, /* beat 4 strained */
+      { speed:10, tension:0.30, flowScale:0.95, fade:0.09, warmth:0.5, attract:0.32}, /* beat 5 catch  */
+      { speed:9,  tension:0.15, flowScale:0.80, fade:0.09, warmth:1,   attract:0.62}  /* beat 6 warm   */
+    ];
+    /* the silence after beat 4: the field nearly stills (held breath) while the
+       strain still hangs in the air. */
+    var SILENCE = { speed:1.5, tension:0.85, flowScale:1.70, fade:0.05, warmth:0, attract:0 };
+    function fieldState(beatIndex){
+      if (beatIndex < 0) return FIELD[0];
+      if (beatIndex >= FIELD.length) return FIELD[FIELD.length-1];
+      return FIELD[beatIndex];
+    }
+
+    /* ---- the living field renderer. Only mounts when a real document/canvas
+       exists; the test runs this core with no document, so this never executes
+       under test. Self-driving: no cursor, time + beat driven. ---- */
+    function mountField(canvas, opts){
+      opts = opts || {};
+      var ctx = canvas.getContext("2d");
+      var W = 0, H = 0, DPR = 1, grad = null;
+      var cx = 0, cy = 0;                 /* focal-knot centre, for the attractor */
+      var THREADS = [], PARTICLES = [];
+      var cur = clone(FIELD[0]);          /* eased current params */
+      var target = clone(FIELD[0]);
+      var mendCur = 0, mendTarget = 0;
+      var pulseT = -1;                    /* >=0 while the single final pulse plays */
+      var last = 0, raf = null;
+      var TAU = Math.PI * 2;
+
+      function clone(o){ return { speed:o.speed, tension:o.tension, flowScale:o.flowScale, fade:o.fade, warmth:o.warmth, attract:o.attract }; }
+      function lerp(a,b,t){ return a + (b-a)*t; }
+
+      function frand(seed){ /* deterministic per-seed pseudo-random, no Math.random in layout */
+        var x = Math.sin(seed * 127.1) * 43758.5453;
+        return x - Math.floor(x);
+      }
+
+      function build(){
+        DPR = Math.min(window.devicePixelRatio || 1, 2);
+        var r = canvas.getBoundingClientRect();
+        W = Math.max(1, Math.round(r.width));
+        H = Math.max(1, Math.round(r.height));
+        canvas.width = Math.round(W * DPR);
+        canvas.height = Math.round(H * DPR);
+        ctx.setTransform(DPR,0,0,DPR,0,0);
+        cx = W * 0.5; cy = H * 0.60;
+        grad = ctx.createRadialGradient(cx, H*0.44, 0, cx, H*0.44, Math.max(W,H)*0.85);
+        grad.addColorStop(0, "#38241d");
+        grad.addColorStop(0.58, "#2d1c17");
+        grad.addColorStop(1, "#1c110c");
+        /* scale element counts to area but keep it sane (a few hundred max) */
+        var area = W * H;
+        var nThread = Math.max(70, Math.min(150, Math.round(area / 5200)));
+        var nDust   = Math.max(120, Math.min(240, Math.round(area / 2600)));
+        THREADS = make(nThread, 0);
+        PARTICLES = make(nDust, 1);
+        ctx.fillStyle = "#2d1c17"; ctx.fillRect(0,0,W,H);
+      }
+      function make(n, kind){
+        var arr = [];
+        for (var i=0;i<n;i++){
+          var sx = frand(i*2.17 + kind*91.3) * W;
+          var sy = frand(i*3.71 + kind*57.9) * H;
+          arr.push({ x:sx, y:sy, px:sx, py:sy,
+                     seed: frand(i*9.13 + kind*13.7),
+                     size: kind === 0 ? (0.7 + frand(i*5.5)*0.9) : (0.5 + frand(i*4.2)*0.7) });
+        }
+        return arr;
+      }
+
+      function step(el, dt, params, isThread){
+        var n = noise3(el.x*0.0016*params.flowScale, el.y*0.0016*params.flowScale, last*0.00010 + el.seed*0.7);
+        var ang = n * TAU * 1.6;
+        /* tension pulls the flow toward a taut vertical strain (strings to breaking) */
+        var pull = el.y < cy ? -Math.PI/2 : Math.PI/2;
+        ang = ang*(1 - params.tension*0.72) + pull*(params.tension*0.72);
+        var sp = params.speed * (isThread ? 1 : 0.7);
+        var vx = Math.cos(ang)*sp, vy = Math.sin(ang)*sp;
+        if (params.attract > 0){               /* threads resolve into the focal knot */
+          vx += (cx - el.x) * params.attract * 0.0020;
+          vy += (cy - el.y) * params.attract * 0.0020;
+        }
+        el.px = el.x; el.py = el.y;
+        el.x += vx * dt; el.y += vy * dt;
+        var m = 24;
+        if (el.x < -m){ el.x = W+m; el.px = el.x; } else if (el.x > W+m){ el.x = -m; el.px = el.x; }
+        if (el.y < -m){ el.y = H+m; el.py = el.y; } else if (el.y > H+m){ el.y = -m; el.py = el.y; }
+      }
+
+      function frame(now){
+        if (!last) last = now;
+        var dt = Math.min(0.05, (now - last)/1000);
+        last = now;
+        var k = 0.045;                          /* slow easing toward the beat's target */
+        cur.speed     = lerp(cur.speed, target.speed, k);
+        cur.tension   = lerp(cur.tension, target.tension, k);
+        cur.flowScale = lerp(cur.flowScale, target.flowScale, k);
+        cur.fade      = lerp(cur.fade, target.fade, k);
+        cur.warmth    = lerp(cur.warmth, target.warmth, k);
+        cur.attract   = lerp(cur.attract, target.attract, k);
+        mendCur += (mendTarget - mendCur) * 0.05;
+
+        /* fade fill doubles as the warm radial ground + thread trails */
+        ctx.globalAlpha = cur.fade;
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,W,H);
+        ctx.globalAlpha = 1;
+
+        /* warmth brightens the thread accent toward the open-door end */
+        var warmA = 0.12 + cur.warmth*0.06;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "rgba(183,95,60," + warmA.toFixed(3) + ")";
+        for (var i=0;i<THREADS.length;i++){
+          var th = THREADS[i];
+          step(th, dt, cur, true);
+          ctx.lineWidth = th.size * (1 + cur.warmth*0.25);
+          ctx.beginPath(); ctx.moveTo(th.px, th.py); ctx.lineTo(th.x, th.y); ctx.stroke();
+        }
+        /* dust: fainter, carries atmosphere and depth */
+        var dustA = 0.05 + cur.warmth*0.03;
+        ctx.fillStyle = "rgba(199,124,94," + dustA.toFixed(3) + ")";
+        for (var d=0;d<PARTICLES.length;d++){
+          var pt = PARTICLES[d];
+          step(pt, dt, cur, false);
+          ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, TAU); ctx.fill();
+        }
+
+        /* the single final pulse, a ring travelling out from the mended knot */
+        if (pulseT >= 0){
+          pulseT += dt;
+          var dur = 1.8, prog = pulseT / dur;
+          if (prog >= 1){ pulseT = -1; }
+          else {
+            var rad = prog * Math.max(W,H) * 0.5;
+            var a = (1 - prog) * 0.5;
+            ctx.strokeStyle = "rgba(231,213,196," + a.toFixed(3) + ")";
+            ctx.lineWidth = 1.4;
+            ctx.beginPath(); ctx.arc(cx, cy, rad, 0, TAU); ctx.stroke();
+          }
+        }
+        raf = window.requestAnimationFrame(frame);
+      }
+
+      build();
+      if (opts.onResize !== false){
+        window.addEventListener("resize", function(){ build(); });
+      }
+      raf = window.requestAnimationFrame(frame);
+
+      return {
+        toBeat: function(i){ target = clone(fieldState(i)); },
+        toSilence: function(){ target = clone(SILENCE); },
+        setMend: function(p){ mendTarget = (p<0?0:(p>1?1:p)); },
+        pulse: function(){ pulseT = 0; },
+        getMend: function(){ return mendCur; },
+        stop: function(){ if (raf) window.cancelAnimationFrame(raf); }
+      };
+    }
+
+    var EXPORT = {
+      beats:beats, timing:TIMING, schedule:schedule,
+      threadProgress:threadProgress, stringExtent:stringExtent,
+      finalIndex:beats.length-1, finalText:beats[beats.length-1],
+      noise3:noise3, fieldState:fieldState, silenceState:SILENCE, mountField:mountField
+    };
+    if (typeof window !== "undefined") window.TheCall = EXPORT;
+    if (typeof module !== "undefined" && module.exports) module.exports = EXPORT;
+  })();
+  </script>
+
+  <!-- DOM driver: coordinates the timed text reveal with the field's beat state. -->
+  <script>
+  (function(){
+    "use strict";
+    var TC = window.TheCall;
+    var stage   = document.getElementById("stage");
+    var canvas  = document.getElementById("field");
+    var linesEl = document.getElementById("lines");
+    var stackEl = document.getElementById("stack");
+    var markEl  = document.getElementById("mark");
+
+    var STRINGS = Array.prototype.map.call(markEl.querySelectorAll(".strings .str"), function(el){
+      var y1 = parseFloat(el.getAttribute("y1")), y2 = parseFloat(el.getAttribute("y2"));
+      return { el:el, y1:y1, len:y2-y1 };
+    });
+    function paintHeart(p){
+      for (var i=0;i<STRINGS.length;i++){
+        var s = STRINGS[i], ext = TC.stringExtent(i, p);
+        s.el.setAttribute("y2", (s.y1 + s.len*ext).toFixed(2));
+        s.el.style.opacity = (0.34 + 0.6*p).toFixed(3);
+      }
+    }
+    paintHeart(0); /* frayed at the start */
+
+    var prefersReduced = window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReduced){
+      document.body.classList.add("reduced");
+      TC.beats.forEach(function(text,i){
+        var p = document.createElement("p");
+        p.textContent = text;
+        if (i === TC.finalIndex) p.className = "final";
+        stackEl.appendChild(p);
+      });
+      paintHeart(1);                     /* show the thread whole */
+      stage.classList.add("is-final");
+      return;                            /* no motion forced on anyone */
+    }
+
+    var field = TC.mountField(canvas, {});
+    field.toBeat(0);
+
+    /* keep the SVG heart's fray in step with the field's eased mend */
+    (function syncHeart(){
+      paintHeart(field.getMend());
+      window.requestAnimationFrame(syncHeart);
+    })();
+
+    var sched = TC.schedule();
+    var BREATH = TC.timing.breath;
+    var resolveWait = null;
+    function wait(ms){
+      return new Promise(function(res){
+        var t = setTimeout(function(){ resolveWait=null; res(); }, ms);
+        resolveWait = function(){ clearTimeout(t); resolveWait=null; res(); };
+      });
+    }
+    function skip(){ if (resolveWait) resolveWait(); }
+    function makeLine(text, isFinal){
+      var el = document.createElement("p");
+      el.className = "line" + (isFinal ? " final" : "");
+      el.textContent = text;
+      return el;
+    }
+
+    function run(){
+      var i = 0;
+      (function nextBeat(){
+        if (i >= sched.length) return;
+        var step = sched[i];
+        /* the silence: the field nearly stills before the catch (beat 5) */
+        var pre = step.pauseBefore ? (field.toSilence(), wait(step.pauseBefore)) : Promise.resolve();
+        pre.then(function(){
+          field.toBeat(step.index);
+          field.setMend(TC.threadProgress(step.index));
+          var el = makeLine(step.text, step.isFinal);
+          el.style.transitionDuration = step.fadeIn + "ms";
+          el.style.transitionTimingFunction = "var(--ease)";
+          linesEl.appendChild(el);
+          requestAnimationFrame(function(){ requestAnimationFrame(function(){
+            el.classList.add("in");
+            if (step.index === 0) stage.classList.add("started");
+          }); });
+          return wait(step.fadeIn).then(function(){ return wait(step.hold); }).then(function(){
+            if (step.isFinal){
+              /* END ON STILLNESS: beat 6 stays, the knot is whole, one faint pulse. */
+              stage.classList.add("is-final");
+              field.setMend(1);
+              setTimeout(function(){ field.pulse(); markEl.classList.add("ring"); }, 700);
+              return;
+            }
+            el.style.transitionDuration = step.fadeOut + "ms";
+            el.classList.remove("in"); el.classList.add("out");
+            return wait(step.fadeOut).then(function(){
+              if (el.parentNode) el.parentNode.removeChild(el);
+              return wait(BREATH);
+            }).then(function(){ i += 1; nextBeat(); });
+          });
+        });
+      })();
+    }
+
+    stage.addEventListener("click", skip);
+    stage.addEventListener("keydown", function(e){
+      if (e.key === " " || e.key === "Enter" || e.code === "Space"){ e.preventDefault(); skip(); }
+    });
+    setTimeout(function(){ stage.classList.add("started"); }, 4200);
+
+    run();
+  })();
+  </script>
+</body>
+</html>
